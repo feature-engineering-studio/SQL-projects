@@ -1,0 +1,102 @@
+---
+title: "project"
+author: "Jie Chen"
+date: "6/4/2020"
+output: html_document
+---
+
+# SQL projects
+
+## Level 1. Create an AWS datbase to store a personal copy of data in a specific structure
+
+```{r}
+library(DBI)
+library(RMySQL)
+
+db_user <- 'admin'
+db_password <- 'password'
+db_name <- 'squirrel'
+db_host <- 'squirreldb.co2wkricnwhs.us-east-2.rds.amazonaws.com'
+db_port <- 3306
+
+mydb <- dbConnect(MySQL(), user = db_user, password = db_password, dbname = db_name, host = db_host, port = db_port)
+
+summary(mydb)
+```
+### Upload the Squirrel Data into my SQL database
+
+```{r}
+
+# Load squirrel data
+squirrelData <- read.csv("Squirrel_Data.csv")
+
+# List the tables in the DB
+dbListTables(mydb)
+
+# Store squirrel data to the DB
+dbWriteTable(mydb, 'squirrelData', squirrelData)
+
+#List tables to see that table was added
+dbListTables(mydb)
+
+# Read squirrel data table
+# dbReadTable(mydb, 'squirrelData')
+```
+
+### Create two new tables, one that gives the squirrel sighting characteristics by primary fur color and another by secondary fur color
+
+```{r}
+library(dplyr)
+
+# By primary fur color
+primary_fur_color <- squirrelData %>%
+  select(c(1:7, 9)) %>%
+  rename(unique_squirrel_id = Unique.Squirrel.ID, hectare_squirrel_number = Hectare.Squirrel.Number, primary_fur_color = Primary.Fur.Color)
+
+# Delete primaryFurColor table if it exists
+dbGetQuery(mydb, "DROP TABLE IF EXISTS primaryFurColor;")
+
+# Store squirrel data to the DB by primary fur color
+dbWriteTable(mydb, 'primaryFurColor', primary_fur_color)
+
+# Get primaryFurColor table
+dbGetQuery(mydb, "SELECT * FROM primaryFurColor ORDER BY primary_fur_color;")
+
+
+# By highlight fur color
+highlight_fur_color <- squirrelData %>%
+  select(c(1:7, 10)) %>%
+  rename(unique_squirrel_id = Unique.Squirrel.ID, hectare_squirrel_number = Hectare.Squirrel.Number, highlight_fur_color = Highlight.Fur.Color)
+
+# Delete highlightFurColor table if it exists
+dbGetQuery(mydb, "DROP TABLE IF EXISTS highlightFurColor;")
+
+# Store squirrel data to the DB
+dbWriteTable(mydb, 'highlightFurColor', highlight_fur_color)
+
+# List the tables in the DB
+dbListTables(mydb)
+
+# Get primaryFurColor table
+dbGetQuery(mydb, "SELECT * FROM highlightFurColor ORDER BY highlight_fur_color;")
+
+```
+
+## Level 2. Create an AWS database linked to an API
+
+```{r}
+#install.packages("jsonlite")
+library(jsonlite)
+#install.packages("httpuv")
+library(httpuv)
+#install.packages("httr")
+library(httr)
+# Can be github, linkedin etc depending on application
+oauth_endpoints("github")
+# Change based on what you 
+myapp <- oauth_app(appname = "",
+                   key = "",
+                   secret = "")
+# Get OAuth credentials
+github_token <- oauth2.0_token(oauth_endpoints("github"), myapp)
+```
