@@ -84,6 +84,8 @@ dbGetQuery(mydb, "SELECT * FROM highlightFurColor ORDER BY highlight_fur_color;"
 
 ## Level 2. Create an AWS database linked to an API
 
+### Get auth
+
 ```{r}
 #install.packages("jsonlite")
 library(jsonlite)
@@ -94,9 +96,85 @@ library(httr)
 # Can be github, linkedin etc depending on application
 oauth_endpoints("github")
 # Change based on what you 
-myapp <- oauth_app(appname = "",
-                   key = "",
-                   secret = "")
+myapp <- oauth_app(appname = "SQL-Project-Test",
+                   key = "2238a14cb35e0055b35c",
+                   secret = "9235537eaa1a43c8208cf4e9bef81eec34558248")
 # Get OAuth credentials
 github_token <- oauth2.0_token(oauth_endpoints("github"), myapp)
 ```
+
+### Pull data from Wenyan-Lang, a famous Chinese IDE
+
+```{r}
+library(dplyr)
+
+#Add repos you want to pull from
+#repos <- c("Sentiment-Analysis-MASC/pulls")
+repos <- c("wenyan/forks", "book/forks")
+
+gtoken <- config(token = github_token)
+
+D2 <- data.frame(matrix(vector(), 0, 3))
+names(D2) <- c("username","fork.date","unit")
+for(i in 1:2){
+    
+  unit <- paste("https://api.github.com/repos/wenyan-lang/", repos[i], sep = "")
+  # Use API
+  req <- GET(unit)
+  # Take action on http error
+  stop_for_status(req)
+  
+  # Extract content from a request
+  json1 = content(req)
+  
+  # Convert to a data.frame
+  gitDF = jsonlite::fromJSON(jsonlite::toJSON(json1))
+  
+  # Subset data.frame
+  #gitDF[gitDF$full_name == "github-api", "created_at"] 
+  
+  user <- gitDF$owner$login
+  pull.date <- gitDF$created_at
+  
+  if(is.null(user)){
+      gitDF <- NULL
+      D1 <- NULL   
+  } else {
+      D1 <- data.frame(unlist(user), unlist(pull.date))
+      names(D1) <- c("username","fork.date")
+      D1$unit <- repos[i]
+      D2 <- bind_rows(D1, D2)
+      D2$fork.date <- substr(D2$fork.date, 1,10)
+      gitDF <- NULL
+      D1 <- NULL
+  }
+}
+
+```
+
+
+### Uplaod data into SQL database
+
+```{r}
+library(stringr)
+
+# Store pulled data to the DB
+dbWriteTable(mydb, 'wenyanlangFork', D2)
+
+# Get dates that have pull data
+unique.date <- unique(D2$fork.date)
+
+# Create separate tables that represent each day that data has been pulled from Github  
+for(i in 1:length(unique.date)){
+  dtdate <- unique.date[i]
+  dt <- D2[D2$fork.date == dtdate,]
+  dtname <- paste('wenyanlangFork', str_replace_all(dtdate, "-", ""), sep = "")
+  # Delete primaryFurColor table if it exists
+  dbGetQuery(mydb, paste("DROP TABLE IF EXISTS", dtname, ";"))
+  dbWriteTable(mydb, dtname, dt)
+}
+
+dbListTables(mydb)
+```
+
+## Level 3. Create an RStudio server in the Cloud
